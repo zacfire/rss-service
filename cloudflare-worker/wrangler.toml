@@ -1,0 +1,37 @@
+# Cloudflare Worker 配置
+# 用于触发 RSS AI Digest 定时任务
+
+name = "rss-digest-cron"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# 环境变量 (在 Cloudflare Dashboard 中配置)
+# DIGEST_API_URL - 你的 API 地址，如 https://your-app.vercel.app/api/cron/generate-digest
+# CRON_SECRET - 安全密钥
+
+[vars]
+# 开发环境默认值
+DIGEST_API_URL = "http://localhost:5173/api/cron/generate-digest"
+CRON_SECRET = "rss-digest-cron-2024"
+
+# 定时触发器 (提前30分钟)
+# 注意: Cloudflare Cron 使用 UTC 时间
+# 北京时间 = UTC + 8
+# 北京 05:30 = UTC 21:30 (前一天)
+# 北京 06:30 = UTC 22:30 (前一天)
+# 北京 07:30 = UTC 23:30 (前一天)
+# 北京 08:30 = UTC 00:30
+# 北京 11:30 = UTC 03:30
+# 北京 17:30 = UTC 09:30
+# 北京 20:30 = UTC 12:30
+
+[triggers]
+crons = [
+  "30 21 * * *",   # UTC 21:30 = 北京 05:30 → 处理 06:00 推送
+  "30 22 * * *",   # UTC 22:30 = 北京 06:30 → 处理 07:00 推送
+  "30 23 * * *",   # UTC 23:30 = 北京 07:30 → 处理 08:00 推送
+  "30 0 * * *",    # UTC 00:30 = 北京 08:30 → 处理 09:00 推送
+  "30 3 * * *",    # UTC 03:30 = 北京 11:30 → 处理 12:00 推送
+  "30 9 * * *",    # UTC 09:30 = 北京 17:30 → 处理 18:00 推送
+  "30 12 * * *"    # UTC 12:30 = 北京 20:30 → 处理 21:00 推送
+]
