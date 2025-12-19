@@ -1,0 +1,48 @@
+name: Daily Digest
+
+on:
+  schedule:
+    # 每天北京时间 7:30 运行 (UTC 23:30)
+    - cron: '30 23 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  generate-and-send:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate and send digest
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          REPLICATE_API_KEY: ${{ secrets.REPLICATE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          echo "🚀 开始生成今日简报..."
+          DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
+          echo "日期: $DATE"
+
+          # 运行 Pipeline 并发送邮件
+          npm run generate-digest -- $DATE
