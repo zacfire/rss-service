@@ -65,7 +65,7 @@
   }
 </script>
 
-<div class="space-y-2 max-h-96 overflow-y-auto">
+<div class="space-y-2 max-h-80 sm:max-h-96 overflow-y-auto">
   {#if feeds.length === 0}
     <div class="text-center py-8 text-gray-500">
       暂无RSS源
@@ -73,20 +73,20 @@
   {:else}
     {#each feeds as feed (feed.id)}
       <div
-        class="flex items-center justify-between p-3 rounded-lg border {feed.isEnabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200 opacity-60'}"
+        class="flex items-start sm:items-center justify-between p-2 sm:p-3 rounded-lg border {feed.isEnabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200 opacity-60'}"
       >
-        <div class="flex items-center space-x-3 flex-1 min-w-0">
+        <div class="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
           <!-- Checkbox -->
           <input
             type="checkbox"
             checked={feed.isEnabled}
             onchange={() => handleToggle(feed.id)}
             disabled={feed.status === 'invalid'}
-            class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50"
+            class="h-4 w-4 mt-1 sm:mt-0 text-blue-600 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 flex-shrink-0"
           />
 
           <!-- Status Icon -->
-          <span class="w-6 text-center {getStatusColor(feed.status)}">
+          <span class="w-5 sm:w-6 text-center {getStatusColor(feed.status)} flex-shrink-0">
             {#if feed.status === 'pending'}
               <svg class="animate-spin h-4 w-4 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -99,14 +99,14 @@
 
           <!-- Feed Info -->
           <div class="flex-1 min-w-0">
-            <div class="font-medium text-gray-900 truncate">
+            <div class="font-medium text-gray-900 text-sm sm:text-base truncate">
               {feed.title || '未知标题'}
             </div>
-            <div class="text-sm text-gray-500 truncate">
+            <div class="text-xs sm:text-sm text-gray-500 truncate">
               {feed.publisher || feed.url}
             </div>
             {#if feed.status === 'invalid' && feed.errorMessage}
-              <div class="text-xs text-red-500 mt-1">
+              <div class="text-xs text-red-500 mt-1 break-words">
                 {feed.errorMessage}
               </div>
             {/if}
@@ -114,14 +114,14 @@
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center space-x-2 ml-2">
+        <div class="flex items-center space-x-1 sm:space-x-2 ml-2 flex-shrink-0">
           {#if feed.status === 'invalid'}
             <button
               onclick={() => handleRetry(feed.id)}
               class="p-1 text-gray-400 hover:text-blue-600"
               title="重试验证"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
@@ -131,7 +131,7 @@
             class="p-1 text-gray-400 hover:text-red-600"
             title="删除"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>

@@ -350,46 +350,46 @@
   <title>RSS AI Digest - AI 驱动的 RSS 简报</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-4 py-8">
+<div class="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
   <!-- Header -->
-  <header class="text-center mb-12">
-    <h1 class="text-3xl font-bold text-gray-900 mb-2">RSS AI Digest</h1>
-    <p class="text-gray-600">上传你的RSS订阅源，每天自动收到AI精选简报</p>
+  <header class="text-center mb-8 sm:mb-12">
+    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">RSS AI Digest</h1>
+    <p class="text-sm sm:text-base text-gray-600">上传你的RSS订阅源，每天自动收到AI精选简报</p>
   </header>
 
   <!-- Progress Steps -->
-  <div class="flex items-center justify-center mb-8">
-    <div class="flex items-center space-x-4">
+  <div class="flex items-center justify-center mb-6 sm:mb-8 overflow-x-auto">
+    <div class="flex items-center space-x-2 sm:space-x-4">
       <button
-        class="flex items-center space-x-2 px-4 py-2 rounded-full transition-colors {currentStep === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}"
+        class="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 rounded-full transition-colors text-sm sm:text-base {currentStep === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}"
         onclick={() => currentStep = 'upload'}
       >
-        <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-sm">1</span>
+        <span class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center text-xs sm:text-sm">1</span>
         <span>上传</span>
       </button>
-      <div class="w-8 h-0.5 bg-gray-300"></div>
+      <div class="w-4 sm:w-8 h-0.5 bg-gray-300"></div>
       <button
-        class="flex items-center space-x-2 px-4 py-2 rounded-full transition-colors {currentStep === 'manage' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}"
+        class="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 rounded-full transition-colors text-sm sm:text-base {currentStep === 'manage' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}"
         onclick={() => feeds.length > 0 && (currentStep = 'manage')}
         disabled={feeds.length === 0}
       >
-        <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-sm">2</span>
+        <span class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center text-xs sm:text-sm">2</span>
         <span>管理</span>
       </button>
-      <div class="w-8 h-0.5 bg-gray-300"></div>
+      <div class="w-4 sm:w-8 h-0.5 bg-gray-300"></div>
       <button
-        class="flex items-center space-x-2 px-4 py-2 rounded-full transition-colors {currentStep === 'config' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}"
+        class="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 rounded-full transition-colors text-sm sm:text-base {currentStep === 'config' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}"
         onclick={() => stats.enabledValid > 0 && (currentStep = 'config')}
         disabled={stats.enabledValid === 0}
       >
-        <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-sm">3</span>
+        <span class="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center text-xs sm:text-sm">3</span>
         <span>配置</span>
       </button>
     </div>
   </div>
 
   <!-- Main Content -->
-  <main class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+  <main class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
     {#if currentStep === 'upload'}
       <FileUpload
         onfileupload={handleFileUpload}
@@ -399,7 +399,7 @@
     {:else if currentStep === 'manage'}
       <div class="space-y-4">
         <!-- Stats & Limit Warning -->
-        <div class="flex items-center justify-between text-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs sm:text-sm gap-1 sm:gap-0">
           <span class="text-gray-600">
             共 {stats.total} 个源，有效 {stats.valid}，失效 {stats.invalid}
             {#if stats.pending > 0}，验证中 {stats.pending}{/if}
