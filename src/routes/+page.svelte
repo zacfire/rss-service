@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import FileUpload from '$lib/components/FileUpload.svelte';
   import FeedList from '$lib/components/FeedList.svelte';
   import ConfigForm from '$lib/components/ConfigForm.svelte';
 
-  const MAX_ENABLED_FEEDS = 30; // 免费版最多启用30个
+  // 配置（从 API 加载）
+  let maxEnabledFeeds = $state<number | null>(30);  // null 表示无限制
+  let enableFeedLimit = $state(true);
 
   // 应用状态
   let feeds = $state<Array<{
@@ -24,6 +27,20 @@
   let newUrlInput = $state('');
   let fileInputRef: HTMLInputElement;
 
+  // 加载配置
+  onMount(async () => {
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        maxEnabledFeeds = config.maxFeeds;
+        enableFeedLimit = config.enableFeedLimit;
+      }
+    } catch (error) {
+      console.error('加载配置失败:', error);
+    }
+  });
+
   // 过滤后的feeds
   let filteredFeeds = $derived(
     feeds.filter(feed =>
@@ -43,8 +60,10 @@
     enabledValid: feeds.filter(f => f.isEnabled && f.status === 'valid').length
   });
 
-  // 检查是否可以启用更多
-  let canEnableMore = $derived(stats.enabled < MAX_ENABLED_FEEDS);
+  // 检查是否可以启用更多（无限制时始终为 true）
+  let canEnableMore = $derived(
+    !enableFeedLimit || maxEnabledFeeds === null || stats.enabled < maxEnabledFeeds
+  );
 
   // 处理文件上传
   async function handleFileUpload(event: CustomEvent<{ file: File }>) {
@@ -70,8 +89,8 @@
       const newFeeds = result.feeds
         .filter((f: any) => !existingUrls.has(f.url))
         .map((f: any) => {
-          // 只有在未超过限制时才自动启用
-          const shouldEnable = enabledCount < MAX_ENABLED_FEEDS;
+          // 只有在未超过限制时才自动启用（无限制时始终启用）
+          const shouldEnable = !enableFeedLimit || maxEnabledFeeds === null || enabledCount < maxEnabledFeeds;
           if (shouldEnable) enabledCount++;
           return {
             ...f,
@@ -109,8 +128,8 @@
       return;
     }
 
-    // 检查是否超过限制
-    const shouldEnable = stats.enabled < MAX_ENABLED_FEEDS;
+    // 检查是否超过限制（无限制时始终启用）
+    const shouldEnable = !enableFeedLimit || maxEnabledFeeds === null || stats.enabled < maxEnabledFeeds;
 
     const newFeed = {
       id: crypto.randomUUID(),
@@ -123,8 +142,8 @@
 
     feeds = [...feeds, newFeed];
 
-    if (!shouldEnable) {
-      alert(`已添加但未启用（已达到 ${MAX_ENABLED_FEEDS} 个限制）`);
+    if (!shouldEnable && enableFeedLimit) {
+      alert(`已添加但未启用（已达到 ${maxEnabledFeeds} 个限制）`);
     }
     newUrlInput = '';
     showAddPanel = false;
@@ -163,8 +182,8 @@
       const newFeeds = result.feeds
         .filter((f: any) => !existingUrls.has(f.url))
         .map((f: any) => {
-          // 只有在未超过限制时才自动启用
-          const shouldEnable = enabledCount < MAX_ENABLED_FEEDS;
+          // 只有在未超过限制时才自动启用（无限制时始终启用）
+          const shouldEnable = !enableFeedLimit || maxEnabledFeeds === null || enabledCount < maxEnabledFeeds;
           if (shouldEnable) enabledCount++;
           return {
             ...f,
@@ -246,9 +265,9 @@
     const feed = feeds.find(f => f.id === feedId);
     if (!feed) return;
 
-    // 如果要启用，检查是否超过限制
-    if (!feed.isEnabled && stats.enabled >= MAX_ENABLED_FEEDS) {
-      alert(`免费版最多启用 ${MAX_ENABLED_FEEDS} 个订阅源，请先取消其他源`);
+    // 如果要启用，检查是否超过限制（无限制时跳过检查）
+    if (enableFeedLimit && maxEnabledFeeds !== null && !feed.isEnabled && stats.enabled >= maxEnabledFeeds) {
+      alert(`免费版最多启用 ${maxEnabledFeeds} 个订阅源，请先取消其他源`);
       return;
     }
 
@@ -265,8 +284,9 @@
   // 批量操作
   function enableAll() {
     let count = 0;
+    const maxToEnable = enableFeedLimit && maxEnabledFeeds !== null ? maxEnabledFeeds - stats.enabled : Infinity;
     feeds = feeds.map(f => {
-      if (f.status === 'valid' && !f.isEnabled && count < MAX_ENABLED_FEEDS - stats.enabled) {
+      if (f.status === 'valid' && !f.isEnabled && count < maxToEnable) {
         count++;
         return { ...f, isEnabled: true };
       }
@@ -384,14 +404,14 @@
             共 {stats.total} 个源，有效 {stats.valid}，失效 {stats.invalid}
             {#if stats.pending > 0}，验证中 {stats.pending}{/if}
           </span>
-          <span class="{stats.enabled > MAX_ENABLED_FEEDS ? 'text-red-600 font-medium' : 'text-gray-600'}">
-            已启用 {stats.enabled}/{MAX_ENABLED_FEEDS}
+          <span class="{enableFeedLimit && maxEnabledFeeds !== null && stats.enabled > maxEnabledFeeds ? 'text-red-600 font-medium' : 'text-gray-600'}">
+            已启用 {stats.enabled}{#if enableFeedLimit && maxEnabledFeeds !== null}/{maxEnabledFeeds}{/if}
           </span>
         </div>
 
-        {#if stats.enabled >= MAX_ENABLED_FEEDS}
+        {#if enableFeedLimit && maxEnabledFeeds !== null && stats.enabled >= maxEnabledFeeds}
           <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-            已达到免费版上限（{MAX_ENABLED_FEEDS}个），如需启用更多请先取消其他源
+            已达到免费版上限（{maxEnabledFeeds}个），如需启用更多请先取消其他源
           </div>
         {/if}
 
@@ -518,14 +538,14 @@
 
         <!-- Actions -->
         <div class="flex flex-col items-end gap-2 pt-4">
-          {#if stats.enabled > MAX_ENABLED_FEEDS}
+          {#if enableFeedLimit && maxEnabledFeeds !== null && stats.enabled > maxEnabledFeeds}
             <p class="text-sm text-red-600">
-              已启用 {stats.enabled} 个，超出限制 {stats.enabled - MAX_ENABLED_FEEDS} 个，请取消部分订阅源
+              已启用 {stats.enabled} 个，超出限制 {stats.enabled - maxEnabledFeeds} 个，请取消部分订阅源
             </p>
           {/if}
           <button
             onclick={() => currentStep = 'config'}
-            disabled={stats.enabledValid === 0 || stats.enabled > MAX_ENABLED_FEEDS}
+            disabled={stats.enabledValid === 0 || (enableFeedLimit && maxEnabledFeeds !== null && stats.enabled > maxEnabledFeeds)}
             class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             下一步：配置推送 →
@@ -544,6 +564,10 @@
 
   <!-- Footer -->
   <footer class="text-center mt-8 text-sm text-gray-500">
-    <p>免费版限制：最多启用{MAX_ENABLED_FEEDS}个RSS源，每日1次推送</p>
+    {#if enableFeedLimit && maxEnabledFeeds !== null}
+      <p>免费版限制：最多启用{maxEnabledFeeds}个RSS源，每日1次推送</p>
+    {:else}
+      <p>每日1次推送</p>
+    {/if}
   </footer>
 </div>

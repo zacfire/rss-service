@@ -7,8 +7,11 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { upsertSubscription } from '$lib/server/db';
 import { sendTestEmail } from '$lib/server/email';
+import { env } from '$env/dynamic/private';
 
 const MAX_FEEDS = 30;
+// 通过环境变量控制是否启用限制，默认启用
+const ENABLE_FEED_LIMIT = env.ENABLE_FEED_LIMIT !== 'false';
 
 interface SubscribeRequest {
   email: string;
@@ -47,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
       throw error(400, '请至少选择一个 RSS 源');
     }
 
-    if (feeds.length > MAX_FEEDS) {
+    if (ENABLE_FEED_LIMIT && feeds.length > MAX_FEEDS) {
       throw error(400, `免费版最多支持 ${MAX_FEEDS} 个 RSS 源`);
     }
 
