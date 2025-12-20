@@ -1,10 +1,14 @@
 name: Daily Digest
 
 on:
-  # schedule:
-  #   # 每天北京时间 7:30 运行 (UTC 23:30)
-  #   - cron: '30 23 * * *'
-  workflow_dispatch: # 手动触发（有用户后再启用定时）
+  schedule:
+    # 北京时间 07:00 (UTC 23:00 前一天)
+    - cron: '0 23 * * *'
+    # 北京时间 08:00 (UTC 00:00)
+    - cron: '0 0 * * *'
+    # 北京时间 09:00 (UTC 01:00)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # 手动触发
 
 jobs:
   generate-and-send:
@@ -37,7 +41,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           REPLICATE_API_KEY: ${{ secrets.REPLICATE_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
           echo "🚀 开始生成今日简报..."

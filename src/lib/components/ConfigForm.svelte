@@ -20,13 +20,9 @@
   let interests = $state('');
 
   const pushTimeOptions = [
-    { value: '06:00', label: '早上 6:00' },
     { value: '07:00', label: '早上 7:00' },
     { value: '08:00', label: '早上 8:00' },
     { value: '09:00', label: '早上 9:00' },
-    { value: '12:00', label: '中午 12:00' },
-    { value: '18:00', label: '晚上 6:00' },
-    { value: '21:00', label: '晚上 9:00' },
   ];
 
   function handleSubmit(event: Event) {
