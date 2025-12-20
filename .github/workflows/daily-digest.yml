@@ -2,18 +2,24 @@ name: Daily Digest
 
 on:
   schedule:
-    # 北京时间 07:00 (UTC 23:00 前一天)
+    # 提前1小时执行，等待到目标时间再发送
+    # 北京时间 06:00 执行 → 07:00 发送 (UTC 22:00 前一天)
+    - cron: '0 22 * * *'
+    # 北京时间 07:00 执行 → 08:00 发送 (UTC 23:00 前一天)
     - cron: '0 23 * * *'
-    # 北京时间 08:00 (UTC 00:00)
+    # 北京时间 08:00 执行 → 09:00 发送 (UTC 00:00)
     - cron: '0 0 * * *'
-    # 北京时间 09:00 (UTC 01:00)
-    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
       push_time:
         description: '推送时段 (07:00/08:00/09:00，留空自动检测)'
         required: false
         default: ''
+      skip_wait:
+        description: '跳过等待，立即发送（用于测试）'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   generate-and-send:
@@ -48,12 +54,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SKIP_WAIT: ${{ github.event.inputs.skip_wait }}
         run: |
           echo "🚀 开始生成今日简报..."
           DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
           PUSH_TIME="${{ github.event.inputs.push_time }}"
           echo "日期: $DATE"
           echo "时段: ${PUSH_TIME:-自动检测}"
+          echo "跳过等待: ${SKIP_WAIT:-false}"
 
           # 运行 Pipeline 并发送邮件
           if [ -n "$PUSH_TIME" ]; then

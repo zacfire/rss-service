@@ -4,9 +4,11 @@
  * 生成并发送每日简报
  *
  * 流程：
- * 1. 根据当前时间确定推送时间段
+ * 1. 提前1小时执行，确定目标推送时间
  * 2. 查询该时间段的订阅者
- * 3. 对每个订阅者：获取 RSS 源 → 运行 Pipeline → 发送邮件
+ * 3. 对每个订阅者：获取 RSS 源 → 运行 Pipeline → 存储结果
+ * 4. 等待到目标推送时间
+ * 5. 统一发送邮件
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -21,6 +23,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
 const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY!;
+const SKIP_WAIT = process.env.SKIP_WAIT === 'true';
 
 // 初始化客户端
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -30,21 +33,47 @@ const parser = new Parser();
 // 推送时间段（北京时间）
 const PUSH_TIMES = ['07:00', '08:00', '09:00'];
 
-function getCurrentPushTime(): string {
-  // 获取北京时间的小时
+// 获取目标推送时间（当前北京时间 +1 小时）
+function getTargetPushTime(): string {
   const now = new Date();
-  const beijingHour = (now.getUTCHours() + 8) % 24;
+  // 当前北京时间的小时 + 1
+  const targetHour = ((now.getUTCHours() + 8) % 24) + 1;
 
   // 找到对应的推送时间
   for (const time of PUSH_TIMES) {
     const hour = parseInt(time.split(':')[0]);
-    if (beijingHour === hour) {
+    if (targetHour === hour) {
       return time;
     }
   }
 
   // 如果是手动触发，默认用 07:00
   return '07:00';
+}
+
+// 计算距离目标时间的毫秒数
+function getWaitTimeMs(pushTime: string): number {
+  const [targetHour, targetMinute] = pushTime.split(':').map(Number);
+
+  const now = new Date();
+  // 计算北京时间的目标时间点
+  const targetDate = new Date(now);
+  // 设置为 UTC 时间，北京时间 = UTC + 8
+  targetDate.setUTCHours(targetHour - 8, targetMinute, 0, 0);
+
+  // 如果目标时间已过，说明是第二天
+  if (targetDate <= now) {
+    targetDate.setDate(targetDate.getDate() + 1);
+  }
+
+  return targetDate.getTime() - now.getTime();
+}
+
+// 格式化等待时间
+function formatWaitTime(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${minutes}分${seconds}秒`;
 }
 
 async function fetchRSSFeeds(feedUrls: string[]): Promise<RSSItem[]> {
@@ -124,14 +153,22 @@ async function sendEmail(to: string, subject: string, html: string) {
   return result;
 }
 
-async function processSubscriber(subscriber: any, date: string) {
-  console.log(`\n👤 处理订阅者: ${subscriber.email}`);
+interface DigestResult {
+  subscriber: any;
+  success: boolean;
+  html?: string;
+  error?: string;
+  reason?: string;
+}
+
+async function generateDigest(subscriber: any, date: string): Promise<DigestResult> {
+  console.log(`\n👤 生成简报: ${subscriber.email}`);
 
   // 1. 获取该用户的 RSS 源
   const feeds = await getFeedsBySubscription(subscriber.id);
   if (feeds.length === 0) {
     console.log('  ⚠️ 没有 RSS 源，跳过');
-    return { success: false, reason: 'no_feeds' };
+    return { subscriber, success: false, reason: 'no_feeds' };
   }
 
   const feedUrls = feeds.map(f => f.url);
@@ -141,7 +178,7 @@ async function processSubscriber(subscriber: any, date: string) {
   const items = await fetchRSSFeeds(feedUrls);
   if (items.length === 0) {
     console.log('  ⚠️ 没有新内容，跳过');
-    return { success: false, reason: 'no_content' };
+    return { subscriber, success: false, reason: 'no_content' };
   }
 
   // 3. 运行 V7 Pipeline
@@ -158,30 +195,47 @@ async function processSubscriber(subscriber: any, date: string) {
 
   if (!result.success || !result.html) {
     console.error('  ❌ Pipeline 失败:', result.error);
-    return { success: false, reason: 'pipeline_failed', error: result.error };
+    return { subscriber, success: false, reason: 'pipeline_failed', error: result.error };
   }
 
   console.log(`  ✅ Pipeline 完成，耗时 ${result.stats?.duration}ms`);
+  return { subscriber, success: true, html: result.html };
+}
 
-  // 4. 发送邮件
-  const subject = `📰 今日RSS简报 · ${date}`;
-  try {
-    await sendEmail(subscriber.email, subject, result.html);
-    console.log('  📧 邮件已发送');
-    return { success: true };
-  } catch (error: any) {
-    console.error('  ❌ 发送失败:', error.message);
-    return { success: false, reason: 'email_failed', error: error.message };
+async function sendDigests(results: DigestResult[], date: string): Promise<{ success: number; failed: number }> {
+  console.log('\n📧 开始发送邮件...');
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const result of results) {
+    if (!result.success || !result.html) {
+      failCount++;
+      continue;
+    }
+
+    const subject = `📰 今日RSS简报 · ${date}`;
+    try {
+      await sendEmail(result.subscriber.email, subject, result.html);
+      console.log(`  ✅ ${result.subscriber.email}`);
+      successCount++;
+    } catch (error: any) {
+      console.error(`  ❌ ${result.subscriber.email}: ${error.message}`);
+      failCount++;
+    }
   }
+
+  return { success: successCount, failed: failCount };
 }
 
 async function main() {
   const date = process.argv[2] || new Date().toISOString().split('T')[0];
   // 支持手动指定时间段，如: npm run generate-digest -- 2024-12-20 07:00
-  const pushTime = process.argv[3] || getCurrentPushTime();
+  const pushTime = process.argv[3] || getTargetPushTime();
 
   console.log(`🗓️  日期: ${date}`);
-  console.log(`⏰ 推送时段: ${pushTime}\n`);
+  console.log(`⏰ 推送时段: ${pushTime}`);
+  console.log(`⏭️  跳过等待: ${SKIP_WAIT}\n`);
 
   // 1. 获取该时段的订阅者
   console.log('👥 获取订阅者...');
@@ -193,25 +247,56 @@ async function main() {
     return;
   }
 
-  // 2. 依次处理每个订阅者
-  let successCount = 0;
-  let failCount = 0;
+  // 2. 先生成所有简报（不发送）
+  console.log('📝 开始生成简报...');
+  const results: DigestResult[] = [];
 
   for (const subscriber of subscribers) {
     try {
-      const result = await processSubscriber(subscriber, date);
-      if (result.success) {
-        successCount++;
-      } else {
-        failCount++;
-      }
+      const result = await generateDigest(subscriber, date);
+      results.push(result);
     } catch (error: any) {
-      console.error(`\n❌ 处理 ${subscriber.email} 时出错:`, error.message);
-      failCount++;
+      console.error(`\n❌ 生成 ${subscriber.email} 简报时出错:`, error.message);
+      results.push({ subscriber, success: false, error: error.message });
     }
   }
 
-  console.log(`\n🎉 完成！成功: ${successCount}, 失败: ${failCount}`);
+  const generatedCount = results.filter(r => r.success).length;
+  console.log(`\n📦 简报生成完成: ${generatedCount}/${subscribers.length}`);
+
+  // 3. 等待到目标推送时间（除非设置了跳过等待）
+  if (!SKIP_WAIT && generatedCount > 0) {
+    const waitMs = getWaitTimeMs(pushTime);
+
+    if (waitMs > 0) {
+      console.log(`\n⏳ 等待到 ${pushTime} 再发送邮件...`);
+      console.log(`   剩余等待时间: ${formatWaitTime(waitMs)}`);
+
+      // 每分钟打印一次进度，避免 GitHub Actions 超时
+      const startTime = Date.now();
+      const endTime = startTime + waitMs;
+
+      while (Date.now() < endTime) {
+        const remaining = endTime - Date.now();
+        if (remaining > 60000) {
+          await new Promise(r => setTimeout(r, 60000));
+          console.log(`   还需等待: ${formatWaitTime(remaining - 60000)}`);
+        } else {
+          await new Promise(r => setTimeout(r, remaining));
+          break;
+        }
+      }
+
+      console.log('   ⏰ 到达推送时间！');
+    }
+  } else if (SKIP_WAIT) {
+    console.log('\n⏭️  跳过等待，立即发送');
+  }
+
+  // 4. 统一发送邮件
+  const { success, failed } = await sendDigests(results, date);
+
+  console.log(`\n🎉 完成！成功: ${success}, 失败: ${failed}`);
 }
 
 main().catch((error) => {
