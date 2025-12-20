@@ -177,7 +177,8 @@ async function processSubscriber(subscriber: any, date: string) {
 
 async function main() {
   const date = process.argv[2] || new Date().toISOString().split('T')[0];
-  const pushTime = getCurrentPushTime();
+  // 支持手动指定时间段，如: npm run generate-digest -- 2024-12-20 07:00
+  const pushTime = process.argv[3] || getCurrentPushTime();
 
   console.log(`🗓️  日期: ${date}`);
   console.log(`⏰ 推送时段: ${pushTime}\n`);
