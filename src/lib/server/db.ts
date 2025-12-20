@@ -66,7 +66,9 @@ export async function getSubscriptionByEmail(email: string) {
 }
 
 /**
- * 创建或更新订阅
+ * 创建或更新订阅（合并模式）
+ * - 同一邮箱再次提交时，新 feeds 与现有的合并（按 URL 去重）
+ * - 推送时间和兴趣设置会更新为最新提交的值
  */
 export async function upsertSubscription(
   email: string,
@@ -76,8 +78,10 @@ export async function upsertSubscription(
 ) {
   // 先查找现有订阅
   let subscription = await getSubscriptionByEmail(email);
+  let isExisting = false;
 
   if (subscription) {
+    isExisting = true;
     // 更新现有订阅
     const { data, error } = await supabase
       .from('subscriptions')
@@ -108,15 +112,28 @@ export async function upsertSubscription(
     subscription = data;
   }
 
-  // 删除旧的feeds
-  await supabase
-    .from('feeds')
-    .delete()
-    .eq('subscription_id', subscription.id);
+  if (!subscription) {
+    throw new Error('Failed to create or update subscription');
+  }
 
-  // 插入新的feeds
-  if (feeds.length > 0) {
-    const feedsToInsert = feeds.map(f => ({
+  // 获取现有的 feeds URL 集合（用于去重）
+  let existingUrls = new Set<string>();
+  if (isExisting) {
+    const { data: existingFeeds } = await supabase
+      .from('feeds')
+      .select('url')
+      .eq('subscription_id', subscription.id);
+
+    if (existingFeeds) {
+      existingUrls = new Set(existingFeeds.map(f => f.url));
+    }
+  }
+
+  // 只插入新的 feeds（不在现有列表中的）
+  const newFeeds = feeds.filter(f => !existingUrls.has(f.url));
+
+  if (newFeeds.length > 0) {
+    const feedsToInsert = newFeeds.map(f => ({
       subscription_id: subscription.id,
       url: f.url,
       title: f.title,
@@ -132,7 +149,19 @@ export async function upsertSubscription(
     if (feedsError) throw feedsError;
   }
 
-  return subscription;
+  // 返回订阅信息，包含统计
+  const { count } = await supabase
+    .from('feeds')
+    .select('*', { count: 'exact', head: true })
+    .eq('subscription_id', subscription.id);
+
+  return {
+    ...subscription,
+    isExisting,
+    newFeedsCount: newFeeds.length,
+    totalFeedsCount: count || 0,
+    skippedCount: feeds.length - newFeeds.length
+  };
 }
 
 /**

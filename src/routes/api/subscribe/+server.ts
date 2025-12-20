@@ -54,15 +54,18 @@ export const POST: RequestHandler = async ({ request }) => {
       throw error(400, `免费版最多支持 ${MAX_FEEDS} 个 RSS 源`);
     }
 
-    // 存储到数据库
-    const subscription = await upsertSubscription(email, pushTime, feeds, interests);
+    // 存储到数据库（合并模式）
+    const result = await upsertSubscription(email, pushTime, feeds, interests);
 
-    console.log('新订阅成功:', {
-      id: subscription.id,
+    console.log('订阅成功:', {
+      id: result.id,
       email,
       pushTime,
       interests: interests ? '已设置' : '未设置',
-      feedCount: feeds.length
+      isExisting: result.isExisting,
+      newFeedsCount: result.newFeedsCount,
+      totalFeedsCount: result.totalFeedsCount,
+      skippedCount: result.skippedCount
     });
 
     // 发送确认邮件 (异步，不阻塞响应)
@@ -70,13 +73,31 @@ export const POST: RequestHandler = async ({ request }) => {
       console.error('确认邮件发送失败:', err);
     });
 
+    // 根据是否是已有用户生成不同的提示消息
+    let message: string;
+    if (result.isExisting) {
+      if (result.newFeedsCount > 0) {
+        message = `配置已更新！新增 ${result.newFeedsCount} 个订阅源，共 ${result.totalFeedsCount} 个。`;
+        if (result.skippedCount > 0) {
+          message += ` (${result.skippedCount} 个重复源已跳过)`;
+        }
+      } else {
+        message = `配置已更新！所有 ${feeds.length} 个源已存在，共 ${result.totalFeedsCount} 个订阅源。`;
+      }
+    } else {
+      message = '订阅成功！确认邮件已发送，我们会在设定的时间向您发送 AI 简报。';
+    }
+
     return json({
       success: true,
-      message: '订阅成功！确认邮件已发送，我们会在设定的时间向您发送 AI 简报。',
+      message,
       data: {
         email,
         pushTime,
-        feedCount: feeds.length
+        isExisting: result.isExisting,
+        newFeedsCount: result.newFeedsCount,
+        totalFeedsCount: result.totalFeedsCount,
+        skippedCount: result.skippedCount
       }
     });
   } catch (err: any) {
