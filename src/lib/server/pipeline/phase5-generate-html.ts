@@ -367,14 +367,15 @@ function generateHTML(
       list-style: none;
       padding: 0;
       margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
     }
     .section li {
       font-size: 14px;
       line-height: 1.5;
       color: #1f2937;
+      margin-bottom: 16px;
+    }
+    .section li:last-child {
+      margin-bottom: 0;
     }
     .section a {
       color: #2196f3;
@@ -458,6 +459,42 @@ function generateHTML(
     a:hover {
       color: #1976d2 !important;
       text-decoration: underline !important;
+    }
+    /* 移动端适配 */
+    @media only screen and (max-width: 600px) {
+      body {
+        padding: 12px !important;
+      }
+      .container {
+        padding: 16px !important;
+        border-radius: 8px !important;
+      }
+      header h1 {
+        font-size: 20px !important;
+      }
+      .section h2 {
+        font-size: 16px !important;
+      }
+      .section ul {
+        display: block !important;
+        columns: 1 !important;
+        -webkit-columns: 1 !important;
+        -moz-columns: 1 !important;
+      }
+      .section li {
+        display: block !important;
+        width: 100% !important;
+        break-inside: avoid !important;
+        -webkit-column-break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 12px !important;
+      }
+      .must-read li h3 {
+        font-size: 15px !important;
+      }
+      .summary, .summary-inline {
+        font-size: 13px !important;
+      }
     }
   </style>
 </head>
