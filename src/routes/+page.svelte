@@ -66,14 +66,20 @@
 
       // 合并新导入的feeds（去重）
       const existingUrls = new Set(feeds.map(f => f.url));
+      let enabledCount = stats.enabled;
       const newFeeds = result.feeds
         .filter((f: any) => !existingUrls.has(f.url))
-        .map((f: any) => ({
-          ...f,
-          id: crypto.randomUUID(),
-          status: 'pending' as const,
-          isEnabled: true // 默认启用
-        }));
+        .map((f: any) => {
+          // 只有在未超过限制时才自动启用
+          const shouldEnable = enabledCount < MAX_ENABLED_FEEDS;
+          if (shouldEnable) enabledCount++;
+          return {
+            ...f,
+            id: crypto.randomUUID(),
+            status: 'pending' as const,
+            isEnabled: shouldEnable
+          };
+        });
 
       feeds = [...feeds, ...newFeeds];
       currentStep = 'manage';
@@ -103,16 +109,23 @@
       return;
     }
 
+    // 检查是否超过限制
+    const shouldEnable = stats.enabled < MAX_ENABLED_FEEDS;
+
     const newFeed = {
       id: crypto.randomUUID(),
       url,
       title: '',
       publisher: '',
       status: 'pending' as const,
-      isEnabled: true
+      isEnabled: shouldEnable
     };
 
     feeds = [...feeds, newFeed];
+
+    if (!shouldEnable) {
+      alert(`已添加但未启用（已达到 ${MAX_ENABLED_FEEDS} 个限制）`);
+    }
     newUrlInput = '';
     showAddPanel = false;
 
@@ -146,14 +159,20 @@
 
       // 合并新导入的feeds（去重）
       const existingUrls = new Set(feeds.map(f => f.url));
+      let enabledCount = stats.enabled;
       const newFeeds = result.feeds
         .filter((f: any) => !existingUrls.has(f.url))
-        .map((f: any) => ({
-          ...f,
-          id: crypto.randomUUID(),
-          status: 'pending' as const,
-          isEnabled: true
-        }));
+        .map((f: any) => {
+          // 只有在未超过限制时才自动启用
+          const shouldEnable = enabledCount < MAX_ENABLED_FEEDS;
+          if (shouldEnable) enabledCount++;
+          return {
+            ...f,
+            id: crypto.randomUUID(),
+            status: 'pending' as const,
+            isEnabled: shouldEnable
+          };
+        });
 
       if (newFeeds.length === 0) {
         alert('没有新的RSS源（所有源已存在）');
@@ -161,6 +180,11 @@
         feeds = [...feeds, ...newFeeds];
         // 开始验证新导入的
         validateFeeds(newFeeds.map((f: any) => f.id));
+        // 提示部分源未启用
+        const notEnabledCount = newFeeds.filter((f: any) => !f.isEnabled).length;
+        if (notEnabledCount > 0) {
+          alert(`已导入 ${newFeeds.length} 个源，其中 ${notEnabledCount} 个因超出限制未自动启用`);
+        }
       }
 
       showAddPanel = false;
@@ -493,10 +517,15 @@
         />
 
         <!-- Actions -->
-        <div class="flex justify-end pt-4">
+        <div class="flex flex-col items-end gap-2 pt-4">
+          {#if stats.enabled > MAX_ENABLED_FEEDS}
+            <p class="text-sm text-red-600">
+              已启用 {stats.enabled} 个，超出限制 {stats.enabled - MAX_ENABLED_FEEDS} 个，请取消部分订阅源
+            </p>
+          {/if}
           <button
             onclick={() => currentStep = 'config'}
-            disabled={stats.enabledValid === 0}
+            disabled={stats.enabledValid === 0 || stats.enabled > MAX_ENABLED_FEEDS}
             class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             下一步：配置推送 →
