@@ -8,7 +8,7 @@
  */
 
 import { spawnSync } from 'child_process';
-import { writeFile, readFile } from 'fs/promises';
+import { writeFile, readFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { OpenAI } from 'openai';
 import type { ItemWithEmbedding, Cluster, HdbscanResult, PipelineConfig } from './types.js';
@@ -155,6 +155,8 @@ export async function runPhase2(input: Phase2Input): Promise<Phase2Output> {
   });
 
   // 保存 embeddings 到临时文件供 Python 使用
+  // 确保工作目录存在
+  await mkdir(config.workDir, { recursive: true });
   const tempInputPath = path.join(config.workDir, '03-items-with-embeddings.json');
   await writeFile(tempInputPath, JSON.stringify({ items }, null, 2));
 
