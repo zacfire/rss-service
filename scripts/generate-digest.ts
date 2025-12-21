@@ -145,6 +145,7 @@ async function getFeedsBySubscription(subscriptionId: string) {
 async function sendEmail(to: string, subject: string, html: string) {
   const result = await resend.emails.send({
     from: 'RSS AI Digest <digest@emmmme.com>',
+    reply_to: 'hellozacchen@gmail.com',
     to,
     subject,
     html,

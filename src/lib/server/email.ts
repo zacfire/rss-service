@@ -25,6 +25,7 @@ export async function sendDigestEmail(options: SendDigestOptions) {
   try {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
+      reply_to: 'hellozacchen@gmail.com',
       to: [to],
       subject,
       html
