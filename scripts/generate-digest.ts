@@ -144,7 +144,7 @@ async function getFeedsBySubscription(subscriptionId: string) {
 
 async function sendEmail(to: string, subject: string, html: string) {
   const result = await resend.emails.send({
-    from: 'RSS Digest <digest@resend.dev>', // 使用 Resend 默认域名
+    from: 'RSS AI Digest <digest@emmmme.com>',
     to,
     subject,
     html,

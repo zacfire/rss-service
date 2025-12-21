@@ -8,7 +8,7 @@ import { RESEND_API_KEY } from '$env/static/private';
 const resend = new Resend(RESEND_API_KEY);
 
 // 发送者邮箱 - 使用 Resend 提供的测试域名，正式环境需要验证自己的域名
-const FROM_EMAIL = 'RSS AI Digest <onboarding@resend.dev>';
+const FROM_EMAIL = 'RSS AI Digest <digest@emmmme.com>';
 
 export interface SendDigestOptions {
   to: string;
