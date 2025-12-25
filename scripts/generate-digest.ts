@@ -66,7 +66,17 @@ function getWaitTimeMs(pushTime: string): number {
     targetDate.setDate(targetDate.getDate() + 1);
   }
 
-  return targetDate.getTime() - now.getTime();
+  const waitMs = targetDate.getTime() - now.getTime();
+
+  // 安全上限：最多等待 1.5 小时（90 分钟）
+  // 如果超过这个时间，说明调度时间有问题，直接发送
+  const MAX_WAIT_MS = 90 * 60 * 1000; // 1.5 小时
+  if (waitMs > MAX_WAIT_MS) {
+    console.log(`⚠️ 等待时间 ${Math.floor(waitMs / 60000)} 分钟超过上限，立即发送`);
+    return 0;
+  }
+
+  return waitMs;
 }
 
 // 格式化等待时间
