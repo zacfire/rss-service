@@ -37,7 +37,10 @@ const PUSH_TIMES = ['07:00', '08:00', '09:00'];
 function getTargetPushTime(): string {
   const now = new Date();
   // 当前北京时间的小时 + 1
-  const targetHour = ((now.getUTCHours() + 8) % 24) + 1;
+  const beijingHour = (now.getUTCHours() + 8) % 24;
+  const targetHour = beijingHour + 1;
+
+  console.log(`  [调试] UTC时间: ${now.getUTCHours()}:${now.getUTCMinutes()}, 北京时间: ${beijingHour}:xx, 目标时段: ${targetHour}:00`);
 
   // 找到对应的推送时间
   for (const time of PUSH_TIMES) {
@@ -47,8 +50,10 @@ function getTargetPushTime(): string {
     }
   }
 
-  // 如果是手动触发，默认用 07:00
-  return '07:00';
+  // 没找到匹配的时间段，说明当前不是预期的执行时间
+  // 返回空字符串表示不应该执行
+  console.log(`  ⚠️ 当前时间不匹配任何预设时段 (06:00/07:00/08:00 北京时间)`);
+  return '';
 }
 
 // 计算距离目标时间的毫秒数
@@ -72,7 +77,7 @@ function getWaitTimeMs(pushTime: string): number {
   // 如果超过这个时间，说明调度时间有问题，直接发送
   const MAX_WAIT_MS = 90 * 60 * 1000; // 1.5 小时
   if (waitMs > MAX_WAIT_MS) {
-    console.log(`⚠️ 等待时间 ${Math.floor(waitMs / 60000)} 分钟超过上限，立即发送`);
+    console.log(`  ⚠️ 等待时间 ${Math.floor(waitMs / 60000)} 分钟超过上限，立即发送`);
     return 0;
   }
 
@@ -245,8 +250,15 @@ async function main() {
   const pushTime = process.argv[3] || getTargetPushTime();
 
   console.log(`🗓️  日期: ${date}`);
-  console.log(`⏰ 推送时段: ${pushTime}`);
+  console.log(`⏰ 推送时段: ${pushTime || '(未检测到)'}`);
   console.log(`⏭️  跳过等待: ${SKIP_WAIT}\n`);
+
+  // 如果推送时间为空，说明当前不是预期的执行时间
+  if (!pushTime) {
+    console.log('⚠️ 当前时间不在预设执行时段内，退出');
+    console.log('   预设执行时段: 北京时间 06:00/07:00/08:00');
+    return;
+  }
 
   // 1. 获取该时段的订阅者
   console.log('👥 获取订阅者...');
