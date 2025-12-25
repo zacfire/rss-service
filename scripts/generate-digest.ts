@@ -173,6 +173,7 @@ interface DigestResult {
   subscriber: any;
   success: boolean;
   html?: string;
+  stats?: Record<string, any>;
   error?: string;
   reason?: string;
 }
@@ -215,7 +216,7 @@ async function generateDigest(subscriber: any, date: string): Promise<DigestResu
   }
 
   console.log(`  ✅ Pipeline 完成，耗时 ${result.stats?.duration}ms`);
-  return { subscriber, success: true, html: result.html };
+  return { subscriber, success: true, html: result.html, stats: result.stats };
 }
 
 async function sendDigests(results: DigestResult[], date: string): Promise<{ success: number; failed: number }> {
@@ -234,9 +235,36 @@ async function sendDigests(results: DigestResult[], date: string): Promise<{ suc
     try {
       await sendEmail(result.subscriber.email, subject, result.html);
       console.log(`  ✅ ${result.subscriber.email}`);
+
+      // 保存简报到数据库
+      const { error: digestError } = await supabase
+        .from('digests')
+        .insert({
+          subscription_id: result.subscriber.id,
+          date,
+          status: 'completed',
+          sent_at: new Date().toISOString(),
+          stats: result.stats || null,
+        });
+
+      if (digestError) {
+        console.log(`     ⚠️ 保存记录失败: ${digestError.message}`);
+      }
+
       successCount++;
     } catch (error: any) {
       console.error(`  ❌ ${result.subscriber.email}: ${error.message}`);
+
+      // 记录失败的简报
+      await supabase
+        .from('digests')
+        .insert({
+          subscription_id: result.subscriber.id,
+          date,
+          status: 'failed',
+          stats: { error: error.message },
+        });
+
       failCount++;
     }
   }
