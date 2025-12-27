@@ -232,6 +232,7 @@ export interface PipelineConfig {
 export interface PipelineResult {
   success: boolean;
   html?: string;
+  digestStructure?: DigestStructure;  // 结构化数据，用于存储和预览
   error?: string;
   stats?: {
     totalItems: number;

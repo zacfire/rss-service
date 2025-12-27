@@ -97,6 +97,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
     return {
       success: true,
       html: phase5Result.html,
+      digestStructure: phase4Result.digestStructure,  // 返回结构化数据
       stats: {
         totalItems: items.length,
         processedItems: phase1Result.items.length,

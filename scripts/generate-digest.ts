@@ -173,6 +173,7 @@ interface DigestResult {
   subscriber: any;
   success: boolean;
   html?: string;
+  digestStructure?: any;  // 结构化数据，用于存储
   stats?: Record<string, any>;
   error?: string;
   reason?: string;
@@ -216,7 +217,13 @@ async function generateDigest(subscriber: any, date: string): Promise<DigestResu
   }
 
   console.log(`  ✅ Pipeline 完成，耗时 ${result.stats?.duration}ms`);
-  return { subscriber, success: true, html: result.html, stats: result.stats };
+  return {
+    subscriber,
+    success: true,
+    html: result.html,
+    digestStructure: result.digestStructure,
+    stats: result.stats
+  };
 }
 
 async function sendDigests(results: DigestResult[], date: string): Promise<{ success: number; failed: number }> {
@@ -236,7 +243,7 @@ async function sendDigests(results: DigestResult[], date: string): Promise<{ suc
       await sendEmail(result.subscriber.email, subject, result.html);
       console.log(`  ✅ ${result.subscriber.email}`);
 
-      // 保存简报到数据库
+      // 保存简报到数据库（包含结构化内容）
       const { error: digestError } = await supabase
         .from('digests')
         .insert({
@@ -245,6 +252,7 @@ async function sendDigests(results: DigestResult[], date: string): Promise<{ suc
           status: 'completed',
           sent_at: new Date().toISOString(),
           stats: result.stats || null,
+          content: result.digestStructure || null,  // 存储结构化内容
         });
 
       if (digestError) {
