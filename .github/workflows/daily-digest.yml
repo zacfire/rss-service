@@ -70,3 +70,21 @@ jobs:
           else
             npm run generate-digest -- $DATE
           fi
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          DATE=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          curl -X POST 'https://api.resend.com/emails' \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"from\": \"RSS AI Digest <digest@emmmme.com>\",
+              \"to\": [\"hellozacchen@gmail.com\"],
+              \"subject\": \"⚠️ RSS 简报推送失败 - $DATE\",
+              \"html\": \"<h2>RSS 简报推送任务失败</h2><p>时间: $DATE</p><p>请查看详细日志: <a href='$RUN_URL'>GitHub Actions</a></p>\"
+            }"
