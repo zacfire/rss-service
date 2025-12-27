@@ -5,7 +5,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { upsertSubscription } from '$lib/server/db';
+import { upsertSubscription, getZacFeeds } from '$lib/server/db';
 import { sendTestEmail } from '$lib/server/email';
 import { env } from '$env/dynamic/private';
 
@@ -17,17 +17,19 @@ interface SubscribeRequest {
   email: string;
   pushTime: string;
   interests?: string;
-  feeds: Array<{
+  feeds?: Array<{
     url: string;
     title: string;
     publisher: string;
   }>;
+  useZacFeeds?: boolean;  // 使用 Zac 精选源
 }
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body: SubscribeRequest = await request.json();
-    const { email, pushTime, interests, feeds } = body;
+    const { email, pushTime, interests, useZacFeeds } = body;
+    let { feeds } = body;
 
     // 验证邮箱
     if (!email || typeof email !== 'string') {
@@ -43,6 +45,16 @@ export const POST: RequestHandler = async ({ request }) => {
     const validTimes = ['06:00', '07:00', '08:00', '09:00', '12:00', '18:00', '21:00'];
     if (!validTimes.includes(pushTime)) {
       throw error(400, '无效的推送时间');
+    }
+
+    // 如果使用 Zac 精选，获取 Zac 的订阅源
+    if (useZacFeeds) {
+      console.log('使用 Zac 精选源...');
+      feeds = await getZacFeeds();
+      if (feeds.length === 0) {
+        throw error(500, '获取精选订阅源失败，请稍后重试');
+      }
+      console.log(`获取到 ${feeds.length} 个 Zac 精选源`);
     }
 
     // 验证feeds
@@ -65,7 +77,8 @@ export const POST: RequestHandler = async ({ request }) => {
       isExisting: result.isExisting,
       newFeedsCount: result.newFeedsCount,
       totalFeedsCount: result.totalFeedsCount,
-      skippedCount: result.skippedCount
+      skippedCount: result.skippedCount,
+      useZacFeeds: useZacFeeds || false
     });
 
     // 发送确认邮件 (异步，不阻塞响应)
@@ -73,9 +86,11 @@ export const POST: RequestHandler = async ({ request }) => {
       console.error('确认邮件发送失败:', err);
     });
 
-    // 根据是否是已有用户生成不同的提示消息
+    // 根据情况生成不同的提示消息
     let message: string;
-    if (result.isExisting) {
+    if (useZacFeeds) {
+      message = `订阅成功！已为您添加 ${feeds.length} 个 Zac 精选源，每天 ${pushTime} 将收到 AI 简报。`;
+    } else if (result.isExisting) {
       if (result.newFeedsCount > 0) {
         message = `配置已更新！新增 ${result.newFeedsCount} 个订阅源，共 ${result.totalFeedsCount} 个。`;
         if (result.skippedCount > 0) {
@@ -97,7 +112,8 @@ export const POST: RequestHandler = async ({ request }) => {
         isExisting: result.isExisting,
         newFeedsCount: result.newFeedsCount,
         totalFeedsCount: result.totalFeedsCount,
-        skippedCount: result.skippedCount
+        skippedCount: result.skippedCount,
+        useZacFeeds: useZacFeeds || false
       }
     });
   } catch (err: any) {

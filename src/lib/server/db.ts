@@ -191,3 +191,38 @@ export async function getSubscriptionsForPush(pushTime: string) {
   if (error) throw error;
   return data as Subscription[];
 }
+
+/**
+ * 获取 Zac 的精选订阅源
+ * 用于"订阅 Zac 精选"功能
+ */
+const ZAC_EMAIL = 'hellozacchen@gmail.com';
+
+export async function getZacFeeds() {
+  // 1. 获取 Zac 的订阅 ID
+  const { data: subscription, error: subError } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('email', ZAC_EMAIL)
+    .single();
+
+  if (subError || !subscription) {
+    console.error('找不到 Zac 的订阅:', subError);
+    return [];
+  }
+
+  // 2. 获取他的所有有效 feeds
+  const { data: feeds, error: feedsError } = await supabase
+    .from('feeds')
+    .select('url, title, publisher')
+    .eq('subscription_id', subscription.id)
+    .eq('status', 'valid')
+    .eq('is_enabled', true);
+
+  if (feedsError) {
+    console.error('获取 Zac feeds 失败:', feedsError);
+    return [];
+  }
+
+  return feeds || [];
+}

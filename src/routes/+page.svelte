@@ -3,6 +3,7 @@
   import FileUpload from '$lib/components/FileUpload.svelte';
   import FeedList from '$lib/components/FeedList.svelte';
   import ConfigForm from '$lib/components/ConfigForm.svelte';
+  import ZacDigestPreview from '$lib/components/ZacDigestPreview.svelte';
 
   // 配置（从 API 加载）
   let maxEnabledFeeds = $state<number | null>(30);  // null 表示无限制
@@ -26,6 +27,7 @@
   let addMode = $state<'url' | 'file'>('url');
   let newUrlInput = $state('');
   let fileInputRef: HTMLInputElement;
+  let useZacFeeds = $state(false);  // 是否使用 Zac 的精选源
 
   // 加载配置
   onMount(async () => {
@@ -305,21 +307,30 @@
   // 提交订阅
   async function handleSubmit(event: CustomEvent<{ email: string; pushTime: string; interests: string }>) {
     const { email, pushTime, interests } = event.detail;
-    console.log('提交订阅:', { email, pushTime, interests });
+    console.log('提交订阅:', { email, pushTime, interests, useZacFeeds });
     isLoading = true;
 
     try {
-      const enabledFeeds = feeds.filter(f => f.isEnabled && f.status === 'valid');
+      let requestBody: any;
 
-      if (enabledFeeds.length === 0) {
-        alert('请至少启用一个有效的RSS源');
-        return;
-      }
+      if (useZacFeeds) {
+        // 使用 Zac 精选源
+        requestBody = {
+          email,
+          pushTime,
+          interests: interests || undefined,
+          useZacFeeds: true  // 后端识别这个标记，使用 Zac 的订阅源
+        };
+      } else {
+        // 使用用户自己的源
+        const enabledFeeds = feeds.filter(f => f.isEnabled && f.status === 'valid');
 
-      const response = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        if (enabledFeeds.length === 0) {
+          alert('请至少启用一个有效的RSS源');
+          return;
+        }
+
+        requestBody = {
           email,
           pushTime,
           interests: interests || undefined,
@@ -328,14 +339,23 @@
             title: f.title,
             publisher: f.publisher
           }))
-        })
+        };
+      }
+
+      const response = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) throw new Error('提交失败');
 
-      alert('订阅成功！请查收确认邮件。');
+      const result = await response.json();
+      alert(result.message || '订阅成功！请查收确认邮件。');
+      
       // 重置状态
       feeds = [];
+      useZacFeeds = false;
       currentStep = 'upload';
     } catch (error) {
       console.error('提交失败:', error);
@@ -395,6 +415,14 @@
         onfileupload={handleFileUpload}
         onaddurl={handleAddUrl}
         {isLoading}
+      />
+      
+      <!-- 订阅 Zac 精选 -->
+      <ZacDigestPreview 
+        onsubscribe={() => {
+          useZacFeeds = true;
+          currentStep = 'config';
+        }}
       />
     {:else if currentStep === 'manage'}
       <div class="space-y-4">
