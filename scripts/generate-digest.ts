@@ -285,7 +285,7 @@ async function main() {
   if (!pushTime) {
     console.log('⚠️ 当前时间不在预设执行时段内，退出');
     console.log('   预设执行时段: 北京时间 06:00/07:00/08:00');
-    return;
+    process.exit(0);
   }
 
   // 1. 获取该时段的订阅者
@@ -295,7 +295,7 @@ async function main() {
 
   if (subscribers.length === 0) {
     console.log('✅ 没有需要推送的订阅者，退出');
-    return;
+    process.exit(0);
   }
 
   // 2. 先生成所有简报（不发送）
@@ -348,6 +348,9 @@ async function main() {
   const { success, failed } = await sendDigests(results, date);
 
   console.log(`\n🎉 完成！成功: ${success}, 失败: ${failed}`);
+
+  // 显式退出进程，避免 Supabase 客户端等保持连接导致进程不退出
+  process.exit(0);
 }
 
 main().catch((error) => {

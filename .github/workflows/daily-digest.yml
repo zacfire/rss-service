@@ -24,6 +24,7 @@ on:
 jobs:
   generate-and-send:
     runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2小时超时，正常运行应在1.5小时内完成
 
     steps:
       - name: Checkout code
