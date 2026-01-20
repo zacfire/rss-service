@@ -73,6 +73,7 @@ export async function runPipeline(options: RunPipelineOptions): Promise<Pipeline
       items: phase1Result.items,
       clusters: phase2Result.clusters,
       date: config.date,
+      userProfile: config.userProfile,  // 传递用户画像
     });
     progress(3, `完成: P0=${phase3Result.memo.stats.creator_pool_size}, P1=${phase3Result.memo.stats.hot_topic_clusters}`);
 

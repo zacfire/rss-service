@@ -5,8 +5,9 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { upsertSubscription, getZacFeeds } from '$lib/server/db';
+import { upsertSubscription, getZacFeeds, updateUserProfile, getUserProfile } from '$lib/server/db';
 import { sendTestEmail } from '$lib/server/email';
+import { analyzeFeeds } from '$lib/server/feed-analyzer';
 import { env } from '$env/dynamic/private';
 
 const MAX_FEEDS = 30;
@@ -80,6 +81,20 @@ export const POST: RequestHandler = async ({ request }) => {
       skippedCount: result.skippedCount,
       useZacFeeds: useZacFeeds || false
     });
+
+    // 异步运行 feed 分析并更新用户画像
+    // 不阻塞响应，在后台执行
+    (async () => {
+      try {
+        console.log(`🔍 开始分析 ${feeds!.length} 个 feeds 的用户画像...`);
+        const { profile } = await analyzeFeeds(feeds!);
+        await updateUserProfile(result.id, profile);
+        console.log(`✅ 用户画像更新成功: ${profile.keyPublishers.length} 个关键发布者`);
+      } catch (err) {
+        console.error('❌ Feed 分析失败:', err);
+        // 不抛出错误，不影响订阅流程
+      }
+    })();
 
     // 发送确认邮件 (异步，不阻塞响应)
     sendTestEmail(email).catch(err => {

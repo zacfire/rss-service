@@ -192,6 +192,14 @@ async function generateDigest(subscriber: any, date: string): Promise<DigestResu
   const feedUrls = feeds.map(f => f.url);
   console.log(`  📋 ${feeds.length} 个 RSS 源`);
 
+  // 获取用户画像
+  const userProfile = subscriber.user_profile || null;
+  if (userProfile) {
+    console.log(`  🎯 用户画像: ${userProfile.keyPublishers?.length || 0} 个关键发布者`);
+  } else {
+    console.log(`  ⚠️ 未设置用户画像，使用默认权重`);
+  }
+
   // 2. 获取 RSS 内容
   const items = await fetchRSSFeeds(feedUrls);
   if (items.length === 0) {
@@ -208,6 +216,7 @@ async function generateDigest(subscriber: any, date: string): Promise<DigestResu
       date,
       openrouterApiKey: OPENROUTER_API_KEY,
       replicateApiKey: REPLICATE_API_KEY,
+      userProfile,  // 传递用户画像
     },
   });
 

@@ -16,6 +16,7 @@ export interface RSSItem {
   publishedAt: string;
   source: {
     url: string;
+    feedUrl?: string;  // Feed URL，用于匹配 sourceWeights
     title: string;
     publisher: string;
     publisherType: string;
@@ -222,11 +223,14 @@ export interface DigestStructure {
 
 // ==================== Pipeline 配置 ====================
 
+import type { UserProfile } from '../db.js';
+
 export interface PipelineConfig {
   workDir: string;
   date: string;
   openrouterApiKey: string;
   replicateApiKey?: string;
+  userProfile?: UserProfile | null;  // 用户画像，用于动态信任度计算
 }
 
 export interface PipelineResult {

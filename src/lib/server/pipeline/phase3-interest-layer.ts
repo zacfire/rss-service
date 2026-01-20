@@ -8,7 +8,6 @@
  * - P3: 噪音/未分类
  */
 
-import { getCreatorTrust } from './config/creator-config.js';
 import type {
   ItemWithEmbedding,
   Cluster,
@@ -18,6 +17,7 @@ import type {
   PriorityBucket,
   ClusterKind,
 } from './types.js';
+import type { UserProfile } from '../db.js';
 
 // ==================== 常量 ====================
 
@@ -74,20 +74,52 @@ export interface Phase3Input {
   items: ItemWithEmbedding[];
   clusters: Cluster[];
   date: string;
+  userProfile?: UserProfile | null;  // 用户画像，用于动态计算信任度
 }
 
 export interface Phase3Output {
   memo: PriorityMemo;
 }
 
+// 动态计算信任度
+function getDynamicTrust(
+  publisher: string,
+  feedUrl: string,
+  userProfile?: UserProfile | null
+): number {
+  if (!userProfile) {
+    // 没有用户画像，使用 RSS 源自带的 authority
+    return 0.5;
+  }
+
+  // 1. 先查 URL 权重
+  if (userProfile.sourceWeights[feedUrl]) {
+    return userProfile.sourceWeights[feedUrl];
+  }
+
+  // 2. 再查发布者
+  const keyPub = userProfile.keyPublishers.find(p => p.name === publisher);
+  if (keyPub) {
+    return keyPub.authority;
+  }
+
+  // 3. 默认信任度
+  return 0.3;
+}
+
 export async function runPhase3(input: Phase3Input): Promise<Phase3Output> {
   console.log('🎯 Phase 3: Priority Memo Builder');
 
-  const { items, clusters, date } = input;
+  const { items, clusters, date, userProfile } = input;
   const now = new Date();
 
   console.log(`  载入 ${items.length} 篇文章`);
   console.log(`  载入 ${clusters.length} 个簇`);
+  if (userProfile) {
+    console.log(`  用户画像: ${userProfile.keyPublishers.length} 个关键发布者`);
+  } else {
+    console.log(`  用户画像: 未设置，使用默认权重`);
+  }
 
   // 建立辅助索引
   const clusterById = new Map<number, Cluster>();
@@ -133,7 +165,12 @@ export async function runPhase3(input: Phase3Input): Promise<Phase3Output> {
 
   // 构建 Item Snapshot
   const itemSnapshots: ItemSnapshot[] = items.map(item => {
-    const trustScore = getCreatorTrust(item.source.publisher);
+    // 使用动态信任度计算
+    const trustScore = getDynamicTrust(
+      item.source.publisher,
+      item.source.feedUrl || '',
+      userProfile
+    );
     const isFollowedCreator = trustScore >= CREATOR_TRUST_THRESHOLD;
 
     const cluster = clusterByFingerprint.get(item.fingerprint) ?? null;
@@ -164,7 +201,7 @@ export async function runPhase3(input: Phase3Input): Promise<Phase3Output> {
     const annotations = {
       trust_level: (
         trustScore === 1.0 ? 'high' :
-        trustScore === 0.8 ? 'medium' : 'low'
+          trustScore === 0.8 ? 'medium' : 'low'
       ) as 'high' | 'medium' | 'low',
 
       multi_source_signal: (() => {
@@ -187,7 +224,7 @@ export async function runPhase3(input: Phase3Input): Promise<Phase3Output> {
 
       urgency: (
         hoursSincePublished <= 6 ? 'urgent' :
-        hoursSincePublished <= 24 ? 'timely' : 'evergreen'
+          hoursSincePublished <= 24 ? 'timely' : 'evergreen'
       ) as 'urgent' | 'timely' | 'evergreen',
     };
 

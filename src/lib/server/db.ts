@@ -18,8 +18,23 @@ export interface Subscription {
   is_active: boolean;
   verify_token: string | null;
   token_expires_at: string | null;
+  user_profile: UserProfile | null;
   created_at: string;
   updated_at: string;
+}
+
+// 用户画像类型
+export interface UserProfile {
+  keyPublishers: Array<{
+    name: string;
+    type: string;
+    subtype?: string;
+    authority: number;
+    weight: number;
+    topics: string[];
+  }>;
+  sourceWeights: Record<string, number>;
+  topics: string[];
 }
 
 export interface Feed {
@@ -162,6 +177,38 @@ export async function upsertSubscription(
     totalFeedsCount: count || 0,
     skippedCount: feeds.length - newFeeds.length
   };
+}
+
+/**
+ * 更新用户画像
+ */
+export async function updateUserProfile(subscriptionId: string, profile: UserProfile) {
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({
+      user_profile: profile,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', subscriptionId);
+
+  if (error) throw error;
+}
+
+/**
+ * 获取用户画像
+ */
+export async function getUserProfile(subscriptionId: string): Promise<UserProfile | null> {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('user_profile')
+    .eq('id', subscriptionId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw error;
+  }
+
+  return data?.user_profile as UserProfile | null;
 }
 
 /**
