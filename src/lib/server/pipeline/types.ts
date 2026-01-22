@@ -231,6 +231,7 @@ export interface PipelineConfig {
   openrouterApiKey: string;
   replicateApiKey?: string;
   userProfile?: UserProfile | null;  // 用户画像，用于动态信任度计算
+  userInterests?: string | null;     // 用户兴趣描述，用于 Phase4 编辑提示
 }
 
 export interface PipelineResult {

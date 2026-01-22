@@ -27,7 +27,7 @@ const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001';
 const truncate = (text: string, maxLength: number): string =>
   text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
 
-function buildLLMPrompt(memo: PriorityMemo): string {
+function buildLLMPrompt(memo: PriorityMemo, userInterests?: string | null): string {
   const items = memo.items;
 
   const highTrustItems = items.filter(i => i.annotations.trust_level === 'high');
@@ -37,23 +37,29 @@ function buildLLMPrompt(memo: PriorityMemo): string {
   )];
   const urgentItems = items.filter(i => i.annotations.urgency === 'urgent');
 
-  const systemPrompt = `
-你是 Zac 的 AI 编辑助理。
-
+  // 构建用户背景部分 - 如果没有设置 interests，使用通用描述
+  const userContextSection = userInterests
+    ? `
 === 用户背景 ===
-• 项目：Reed（AI 决策助手）
-• 阶段：种子轮融资（3M 人民币）
-• 核心兴趣：投资思维、AI 前沿、播客、产品设计、中国市场
-• 当前焦点：融资策略、竞争对手分析、AI 监管政策
+${userInterests}
+`
+    : `
+=== 用户背景 ===
+• 一位关注科技、创业和投资领域的读者
+• 希望每日获取有价值的信息摘要
+`;
 
+  const systemPrompt = `
+你是一位专业的 AI 编辑助理。
+${userContextSection}
 === 今日 RSS 概况 ===
 总文章数：${items.length} 篇
 
 📌 高信任创作者更新（${highTrustItems.length} 篇）
-这些是长期关注的独立思考者，他们的内容通常值得优先考虑：
+这些是用户长期关注的独立思考者，他们的内容通常值得优先考虑：
 ${highTrustItems.slice(0, 10).map(i =>
-  `• [${i.fingerprint.substring(0, 8)}] ${i.publisher}: "${truncate(i.title, 80)}"`
-).join('\n')}
+    `• [${i.fingerprint.substring(0, 8)}] ${i.publisher}: "${truncate(i.title, 80)}"`
+  ).join('\n')}
 ${highTrustItems.length > 10 ? `... 还有 ${highTrustItems.length - 10} 篇` : ''}
 
 🔥 多源共鸣话题（${multiSourceTopics.length} 个）
@@ -74,8 +80,7 @@ ${multiSourceTopics.length > 5 ? `... 还有 ${multiSourceTopics.length - 5} 个
 1. **必读（3-5 篇）** - 今天最重要的文章
 
    判断标准（按优先级）：
-   a. 对当前工作的直接价值
-      - Reed 产品灵感、融资策略参考、竞争对手分析
+   a. 对用户当前关注领域的直接价值
 
    b. 高信任创作者的重要观点
       - annotations.trust_level="high" 的文章通常应优先
@@ -94,13 +99,12 @@ ${multiSourceTopics.length > 5 ? `... 还有 ${multiSourceTopics.length - 5} 个
 
    请选择 6-10 篇有价值的文章，按话题组织。
 
-   话题分类建议：
+   话题分类建议（可根据今天的内容灵活调整）：
+   - 科技与创新
    - 投资与创业
-   - AI 与技术
-   - 播客与内容
-   - 产品设计
-   - 中国市场
-   （可以根据今天的内容灵活调整话题）
+   - 行业深度
+   - 思维与方法论
+   - 其他热点
 
    每个话题内：
    - 优先展示 trust_level="high" 的文章
@@ -183,16 +187,16 @@ ${multiSourceTopics.length > 5 ? `... 还有 ${multiSourceTopics.length - 5} 个
 
 === 今日文章详情 ===
 ${items.map(item => JSON.stringify({
-  id: item.fingerprint,
-  title: item.title,
-  publisher: item.publisher,
-  summary: item.summary?.substring(0, 150) || '',
-  hours_old: item.hours_since_published,
-  trust_level: item.annotations.trust_level,
-  multi_source_topic: item.annotations.multi_source_signal?.topic || null,
-  urgency: item.annotations.urgency,
-  _system_pool: item.priority_buckets
-}, null, 2)).join(',\n')}
+    id: item.fingerprint,
+    title: item.title,
+    publisher: item.publisher,
+    summary: item.summary?.substring(0, 150) || '',
+    hours_old: item.hours_since_published,
+    trust_level: item.annotations.trust_level,
+    multi_source_topic: item.annotations.multi_source_signal?.topic || null,
+    urgency: item.annotations.urgency,
+    _system_pool: item.priority_buckets
+  }, null, 2)).join(',\n')}
 
 现在开始编辑今日简报。记住：用判断力，不要机械执行。如果某天 P2 池为空，从 P3 池中选择有价值的内容。
 返回纯 JSON，不要 markdown 包裹，不要额外解释。
@@ -319,7 +323,7 @@ export async function runPhase4(input: Phase4Input): Promise<Phase4Output> {
 
   console.log(`  载入 Priority Memo: ${memo.items.length} 篇文章`);
 
-  const prompt = buildLLMPrompt(memo);
+  const prompt = buildLLMPrompt(memo, config.userInterests);
 
   console.log('  调用 Gemini 2.0 Flash (OpenRouter)...');
 

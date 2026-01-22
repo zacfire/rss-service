@@ -217,6 +217,7 @@ async function generateDigest(subscriber: any, date: string): Promise<DigestResu
       openrouterApiKey: OPENROUTER_API_KEY,
       replicateApiKey: REPLICATE_API_KEY,
       userProfile,  // 传递用户画像
+      userInterests: subscriber.interests,  // 传递用户兴趣描述
     },
   });
 
