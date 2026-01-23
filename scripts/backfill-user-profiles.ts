@@ -22,13 +22,12 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 async function main() {
-    console.log('🔍 开始为现有用户生成 user_profile...\n');
+    console.log('🔍 开始为现有用户生成 user_profile 和 interests...\n');
 
-    // 1. 获取所有没有 user_profile 的订阅者
+    // 1. 获取所有活跃订阅者（包括那些可能需要更新 interests 的）
     const { data: subscribers, error: subError } = await supabase
         .from('subscriptions')
-        .select('id, email')
-        .is('user_profile', null)
+        .select('id, email, user_profile, interests')
         .eq('is_active', true);
 
     if (subError) {
@@ -37,16 +36,24 @@ async function main() {
     }
 
     if (!subscribers || subscribers.length === 0) {
-        console.log('✅ 所有用户都已有 user_profile，无需处理');
+        console.log('✅ 没有活跃用户');
         process.exit(0);
     }
 
-    console.log(`📋 找到 ${subscribers.length} 个需要处理的用户\n`);
+    // 筛选需要处理的用户（没有 user_profile 或没有 interests）
+    const needsUpdate = subscribers.filter(s => !s.user_profile || !s.interests);
+
+    if (needsUpdate.length === 0) {
+        console.log('✅ 所有用户都已有 user_profile 和 interests，无需处理');
+        process.exit(0);
+    }
+
+    console.log(`📋 找到 ${needsUpdate.length} 个需要处理的用户\n`);
 
     let successCount = 0;
     let failCount = 0;
 
-    for (const subscriber of subscribers) {
+    for (const subscriber of needsUpdate) {
         console.log(`\n👤 处理: ${subscriber.email}`);
 
         try {
@@ -70,14 +77,15 @@ async function main() {
 
             console.log(`  📋 ${feeds.length} 个 feeds`);
 
-            // 分析 feeds 生成 profile
-            const { profile } = await analyzeFeeds(feeds);
+            // 分析 feeds 生成 profile 和 interests
+            const { profile, generatedInterests } = await analyzeFeeds(feeds);
 
             // 存储到数据库
             const { error: updateError } = await supabase
                 .from('subscriptions')
                 .update({
                     user_profile: profile,
+                    interests: generatedInterests,  // 同时保存自动生成的 interests
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', subscriber.id);

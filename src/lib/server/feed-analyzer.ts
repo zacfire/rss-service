@@ -352,12 +352,73 @@ export function generateUserProfile(
     };
 }
 
+// ==================== 生成用户兴趣描述 ====================
+
+export function generateInterestsDescription(
+    analyses: FeedAnalysis[],
+    profile: UserProfile
+): string {
+    const lines: string[] = [];
+
+    // 统计源类型
+    const typeCount = {
+        personal: analyses.filter(a => a.type === 'personal').length,
+        media: analyses.filter(a => a.type === 'media').length,
+        org: analyses.filter(a => a.type === 'org').length,
+    };
+
+    // 总结订阅偏好
+    const totalFeeds = analyses.length;
+    const preferences: string[] = [];
+
+    if (typeCount.personal > totalFeeds * 0.3) {
+        preferences.push('独立创作者/博客');
+    }
+    if (typeCount.media > totalFeeds * 0.2) {
+        preferences.push('科技/商业媒体');
+    }
+    if (typeCount.org > totalFeeds * 0.1) {
+        preferences.push('机构/公司官方');
+    }
+
+    if (preferences.length > 0) {
+        lines.push(`• 偏好内容来源：${preferences.join('、')}`);
+    }
+
+    // 列出关键创作者（最多 5 个）
+    const topPublishers = profile.keyPublishers
+        .filter(p => p.type === 'individual')
+        .slice(0, 5)
+        .map(p => p.name);
+
+    if (topPublishers.length > 0) {
+        lines.push(`• 关注的创作者：${topPublishers.join('、')}`);
+    }
+
+    // 列出关注的机构（最多 3 个）
+    const topOrgs = profile.keyPublishers
+        .filter(p => p.type === 'organization')
+        .slice(0, 3)
+        .map(p => p.name);
+
+    if (topOrgs.length > 0) {
+        lines.push(`• 关注的机构：${topOrgs.join('、')}`);
+    }
+
+    // 如果没有足够信息，使用通用描述
+    if (lines.length === 0) {
+        return '• 一位关注科技、创业和投资领域的读者';
+    }
+
+    return lines.join('\n');
+}
+
 // ==================== 批量分析 Feeds ====================
 
 export async function analyzeFeeds(
     feeds: Array<{ url: string; title: string; publisher: string }>,
     concurrency = 5
-): Promise<{ analyses: FeedAnalysis[]; profile: UserProfile }> {
+): Promise<{ analyses: FeedAnalysis[]; profile: UserProfile; generatedInterests: string }> {
     console.log(`🔍 分析 ${feeds.length} 个 feeds...`);
 
     const analyses: FeedAnalysis[] = [];
@@ -383,5 +444,9 @@ export async function analyzeFeeds(
     const profile = generateUserProfile(analyses, feeds);
     console.log(`📊 生成用户画像: ${profile.keyPublishers.length} 个关键发布者`);
 
-    return { analyses, profile };
+    // 生成兴趣描述
+    const generatedInterests = generateInterestsDescription(analyses, profile);
+    console.log(`📝 生成兴趣描述`);
+
+    return { analyses, profile, generatedInterests };
 }

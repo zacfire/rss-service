@@ -212,6 +212,35 @@ export async function getUserProfile(subscriptionId: string): Promise<UserProfil
 }
 
 /**
+ * 更新用户兴趣描述（仅在用户没有手动设置时）
+ */
+export async function updateUserInterests(subscriptionId: string, interests: string, onlyIfEmpty = true) {
+  if (onlyIfEmpty) {
+    // 先检查是否已有 interests
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('interests')
+      .eq('id', subscriptionId)
+      .single();
+
+    if (data?.interests) {
+      console.log('用户已有手动设置的 interests，跳过自动生成');
+      return;
+    }
+  }
+
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({
+      interests,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', subscriptionId);
+
+  if (error) throw error;
+}
+
+/**
  * 获取订阅的所有feeds
  */
 export async function getFeedsBySubscription(subscriptionId: string) {

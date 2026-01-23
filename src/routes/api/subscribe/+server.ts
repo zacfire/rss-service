@@ -5,7 +5,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { upsertSubscription, getZacFeeds, updateUserProfile, getUserProfile } from '$lib/server/db';
+import { upsertSubscription, getZacFeeds, updateUserProfile, updateUserInterests } from '$lib/server/db';
 import { sendTestEmail } from '$lib/server/email';
 import { analyzeFeeds } from '$lib/server/feed-analyzer';
 import { env } from '$env/dynamic/private';
@@ -87,9 +87,13 @@ export const POST: RequestHandler = async ({ request }) => {
     (async () => {
       try {
         console.log(`🔍 开始分析 ${feeds!.length} 个 feeds 的用户画像...`);
-        const { profile } = await analyzeFeeds(feeds!);
+        const { profile, generatedInterests } = await analyzeFeeds(feeds!);
         await updateUserProfile(result.id, profile);
         console.log(`✅ 用户画像更新成功: ${profile.keyPublishers.length} 个关键发布者`);
+
+        // 保存自动生成的 interests（仅在用户没有手动设置时）
+        await updateUserInterests(result.id, generatedInterests, true);
+        console.log(`✅ 用户兴趣描述已生成`);
       } catch (err) {
         console.error('❌ Feed 分析失败:', err);
         // 不抛出错误，不影响订阅流程
