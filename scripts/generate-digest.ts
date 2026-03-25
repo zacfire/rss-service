@@ -22,7 +22,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
-const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY!;
 const SKIP_WAIT = process.env.SKIP_WAIT === 'true';
 
 // 初始化客户端
@@ -215,7 +214,6 @@ async function generateDigest(subscriber: any, date: string): Promise<DigestResu
       workDir: '/tmp/pipeline',
       date,
       openrouterApiKey: OPENROUTER_API_KEY,
-      replicateApiKey: REPLICATE_API_KEY,
       userProfile,  // 传递用户画像
       userInterests: subscriber.interests,  // 传递用户兴趣描述
     },
@@ -292,12 +290,19 @@ async function sendDigests(results: DigestResult[], date: string): Promise<{ suc
 
 async function main() {
   const date = process.argv[2] || new Date().toISOString().split('T')[0];
-  // 支持手动指定时间段，如: npm run generate-digest -- 2024-12-20 07:00
-  const pushTime = process.argv[3] || getTargetPushTime();
+  // 解析参数: npm run generate-digest -- 2024-12-20 [07:00] [--test-email user@example.com]
+  const testEmailIdx = process.argv.indexOf('--test-email');
+  const testEmail = testEmailIdx !== -1 ? process.argv[testEmailIdx + 1] : null;
+
+  // pushTime 参数：跳过 --test-email 及其值
+  const pushTimeArg = process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : '';
+  const pushTime = pushTimeArg || getTargetPushTime();
 
   console.log(`🗓️  日期: ${date}`);
   console.log(`⏰ 推送时段: ${pushTime || '(未检测到)'}`);
-  console.log(`⏭️  跳过等待: ${SKIP_WAIT}\n`);
+  console.log(`⏭️  跳过等待: ${SKIP_WAIT}`);
+  if (testEmail) console.log(`🧪 测试模式: 仅发送到 ${testEmail}`);
+  console.log();
 
   // 如果推送时间为空，说明当前不是预期的执行时间
   if (!pushTime) {
@@ -308,7 +313,25 @@ async function main() {
 
   // 1. 获取该时段的订阅者
   console.log('👥 获取订阅者...');
-  const subscribers = await getSubscriptionsForPush(pushTime);
+  let subscribers = await getSubscriptionsForPush(pushTime);
+
+  // 测试模式：只保留目标邮箱的订阅者
+  if (testEmail) {
+    const matched = subscribers.filter((s: any) => s.email === testEmail);
+    if (matched.length === 0) {
+      // 没找到匹配的订阅者，用第一个订阅者的数据但覆盖邮箱
+      if (subscribers.length > 0) {
+        console.log(`  ⚠️ 未找到 ${testEmail} 的订阅，使用第一个订阅者的 RSS 源`);
+        subscribers = [{ ...subscribers[0], email: testEmail }];
+      } else {
+        console.log(`  ❌ 没有任何订阅者，无法测试`);
+        process.exit(0);
+      }
+    } else {
+      subscribers = matched;
+    }
+  }
+
   console.log(`  共 ${subscribers.length} 位订阅者\n`);
 
   if (subscribers.length === 0) {
@@ -333,8 +356,8 @@ async function main() {
   const generatedCount = results.filter(r => r.success).length;
   console.log(`\n📦 简报生成完成: ${generatedCount}/${subscribers.length}`);
 
-  // 3. 等待到目标推送时间（除非设置了跳过等待）
-  if (!SKIP_WAIT && generatedCount > 0) {
+  // 3. 等待到目标推送时间（测试模式或设置了跳过等待时跳过）
+  if (!SKIP_WAIT && !testEmail && generatedCount > 0) {
     const waitMs = getWaitTimeMs(pushTime);
 
     if (waitMs > 0) {

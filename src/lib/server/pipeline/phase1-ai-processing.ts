@@ -2,12 +2,11 @@
  * V7-Rethink Phase 1: AI处理
  *
  * 1. 为每篇文章生成AI Summary
- * 2. 生成Embedding（Qwen3-8B）
+ * 2. 生成Embedding（OpenRouter）
  * 3. 多语言处理
  */
 
 import { OpenAI } from 'openai';
-import Replicate from 'replicate';
 import type { ValidItem, ItemWithEmbedding, Language, PipelineConfig } from './types.js';
 
 // ==================== 工具函数 ====================
@@ -62,48 +61,52 @@ export async function runPhase1(input: Phase1Input): Promise<Phase1Output> {
     },
   });
 
-  const replicate = new Replicate({ auth: config.replicateApiKey });
-
   const results: ItemWithEmbedding[] = [];
-  const batchSize = 10;
+  const concurrency = 5;
+  let completed = 0;
 
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, Math.min(i + batchSize, items.length));
+  // 并发批处理
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, Math.min(i + concurrency, items.length));
 
-    for (const item of batch) {
-      try {
-        // 1. 生成Summary
-        const { summary, language } = await generateSummary(item, openai);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (item) => {
+        try {
+          // 1. 生成Summary
+          const { summary, language } = await generateSummary(item, openai);
 
-        // 2. 生成Embedding
-        const embedding = await generateEmbedding(summary, replicate);
+          // 2. 生成Embedding（OpenRouter）
+          const embedding = await generateEmbedding(summary, openai);
 
-        results.push({
-          ...item,
-          aiSummary: summary,
-          summaryEmbedding: embedding,
-          language,
-        });
+          return {
+            ...item,
+            aiSummary: summary,
+            summaryEmbedding: embedding,
+            language,
+          } as ItemWithEmbedding;
+        } catch (error: any) {
+          console.error(`  ❌ 处理失败: ${item.title}`);
+          console.error(`     ${error.message}`);
 
-        console.log(`  ✓ [${results.length}/${items.length}] ${item.title.substring(0, 50)}...`);
+          // Fallback: 使用原始数据
+          return {
+            ...item,
+            aiSummary: item.title,
+            summaryEmbedding: [],
+            language: detectLanguage(item.title + ' ' + item.description),
+          } as ItemWithEmbedding;
+        }
+      })
+    );
 
-        // Rate limit
-        await new Promise(r => setTimeout(r, 500));
-      } catch (error: any) {
-        console.error(`  ❌ 处理失败: ${item.title}`);
-        console.error(`     ${error.message}`);
-
-        // Fallback: 使用原始数据
-        results.push({
-          ...item,
-          aiSummary: item.title,
-          summaryEmbedding: [],
-          language: detectLanguage(item.title + ' ' + item.description),
-        });
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
       }
     }
 
-    console.log(`  进度: ${Math.min(i + batchSize, items.length)}/${items.length}`);
+    completed += batch.length;
+    console.log(`  进度: ${completed}/${items.length}`);
   }
 
   const stats = {
@@ -174,24 +177,23 @@ Requirements:
   return { summary: item.title, language };
 }
 
-async function generateEmbedding(text: string, replicate: Replicate, retries = 3): Promise<number[]> {
+async function generateEmbedding(text: string, openai: OpenAI, retries = 3): Promise<number[]> {
   const normalizedText = normalizeText(text);
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const output = (await replicate.run(
-        'lucataco/qwen3-embedding-8b:42d968487820032a1535d81ea20df16f442ea308ec5abae6b5d6cf4675eb3e2f',
-        { input: { text: normalizedText } }
-      )) as { embedding_dim: number; embeddings: number[][] };
+      const response = await openai.embeddings.create({
+        model: 'openai/text-embedding-3-small',
+        input: normalizedText,
+      });
 
-      if (output && output.embeddings && output.embeddings.length > 0) {
-        return output.embeddings[0];
+      if (response.data && response.data.length > 0) {
+        return response.data[0].embedding;
       }
 
       throw new Error('Invalid embedding output');
     } catch (error: any) {
       if (attempt === retries) {
-        // Return empty array as fallback
         return [];
       }
       await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
