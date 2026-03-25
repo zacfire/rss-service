@@ -178,7 +178,7 @@ async function fetchRssContent(
                 .filter((item: any) => {
                   if (!item.title || !item.link) return false;
                   const pubDate = item.isoDate || item.pubDate;
-                  if (!pubDate) return true; // 保留无日期的
+                  if (!pubDate) return false; // 跳过无日期的条目，避免老文章重复出现
                   const itemTime = new Date(pubDate).getTime();
                   return itemTime >= dateRange.start.getTime() &&
                          itemTime <= dateRange.end.getTime();

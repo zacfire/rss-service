@@ -103,7 +103,13 @@ async function fetchRSSFeeds(feedUrls: string[]): Promise<RSSItem[]> {
       const feedTitle = feed.title || url;
 
       for (const item of feed.items || []) {
-        const pubDate = item.pubDate ? new Date(item.pubDate) : now;
+        // 没有 pubDate 的条目跳过（避免无日期的老文章每天重复出现）
+        if (!item.pubDate) continue;
+
+        const pubDate = new Date(item.pubDate);
+
+        // 无效日期跳过
+        if (isNaN(pubDate.getTime())) continue;
 
         // 只获取最近 24 小时的内容
         if (pubDate < oneDayAgo) continue;
