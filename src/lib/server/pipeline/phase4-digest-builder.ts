@@ -80,21 +80,25 @@ ${multiSourceTopics.length > 5 ? `... 还有 ${multiSourceTopics.length - 5} 个
 1. **必读（3-5 篇）** - 今天最重要的文章
 
    判断标准（按优先级）：
-   a. 多源共鸣（最强信号）
-      - annotations.multi_source_signal 存在
-      - 多个独立来源同时关注同一话题，说明确实重要
+   a. 对用户当前关注领域的直接价值
 
-   b. 时效性和紧迫性
+   b. 高信任创作者的重要观点
+      - annotations.trust_level="high" 的文章通常应优先
+      - 但不是强制的！如果今天他们的内容相对不那么关键，可以调整
+      - 必须在 metadata.adjustment_notes 中解释调整理由
+
+   c. 时效性和紧迫性
       - annotations.urgency="urgent" 的内容
       - 政策变化、市场突发事件
 
-   c. 高信任创作者的重要观点（如果有的话）
-      - annotations.trust_level="high" 的文章可优先考虑
-      - 但如果今天没有高信任文章，不要勉强凑数
+   d. 多源共鸣
+      - annotations.multi_source_signal 存在
+      - 说明多个独立来源都在关注
 
-   d. 内容本身的深度和独特性
-      - 有独到见解、深度分析的文章
-      - 不要仅因为来源"大"就选为必读（如泛泛的科技新闻）
+   ⚠️ 如果今天没有 trust_level="high" 的文章（P0 池为空），则：
+      - 提升多源共鸣和时效性的权重作为主要判断依据
+      - 优先选择有深度分析、独到见解的文章
+      - 不要用泛泛的科技新闻凑数，宁可少选（最低 2 篇）
 
 2. **话题聚焦（6-10 篇）** - 按话题组织
 
@@ -104,9 +108,9 @@ ${multiSourceTopics.length > 5 ? `... 还有 ${multiSourceTopics.length - 5} 个
    话题名称应具体反映当天内容（如"AI Agent 开发实践"而非泛泛的"科技与创新"）。
 
    每个话题内：
-   - 优先展示有 multi_source_signal 的文章
-   - 其次是 trust_level="high" 的文章
-   - 其他按内容深度和相关性排序
+   - 优先展示 trust_level="high" 的文章
+   - 标注 multi_source_signal 的文章
+   - 其他按相关性排序
 
    ⚠️ 重要：
    - 可以从任何 pool 选择内容（包括 P3 池）
@@ -173,13 +177,14 @@ ${multiSourceTopics.length > 5 ? `... 还有 ${multiSourceTopics.length - 5} 个
 === 核心原则 ===
 
 ✅ 用编辑判断力，不要机械执行标签
-✅ 必读应该是"今天不看会错过"的内容，不是"来源大所以重要"
-✅ 多源共鸣是最强的必读信号 — 多个独立来源讨论同一话题说明确实重要
-✅ 可以从任何 pool 选择有价值的内容（包括 P3 池的 ${memo.pools.P3_noise_items.length} 篇）
-✅ 如果今天没有真正值得必读的内容，宁可少选也不要凑数
+✅ trust_level="high" 通常优先，但不是绝对（可以根据今天的具体情况调整）
+✅ 可以从 P3 池中选择有价值的内容（不要浪费这 ${memo.pools.P3_noise_items.length} 篇文章）
+✅ 解释你的决策逻辑，保持透明
+✅ 如果调整了信任作者的优先级，必须说明理由
+✅ 如果 P0 池为空（无高信任文章），以多源共鸣和时效性为主要必读依据，不要用泛泛新闻凑数
 
-❌ 不要把泛泛的科技新闻当必读（除非有多源共鸣或时效性很强）
 ❌ 不要捏造文章内容
+❌ 不要遗漏明显关键的信息
 ❌ 不要机械地按 pool 分配（要灵活判断）
 
 === 今日文章详情 ===
